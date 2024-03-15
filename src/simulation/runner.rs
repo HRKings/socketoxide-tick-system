@@ -1,10 +1,8 @@
-use serde_json::{json, Value};
-use socketioxide::{BroadcastError, SocketIo};
-use std::borrow::Cow;
+use serde_json::json;
+use socketioxide::SocketIo;
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
-use tokio::task::JoinHandle;
 use tokio::time::Instant;
 use tracing::info;
 
@@ -16,20 +14,6 @@ fn calculate_delta(global_timer: &mut Instant) -> Duration {
     *global_timer = Instant::now();
 
     tmp
-}
-
-fn emit_async(
-    socket_io: SocketIo,
-    last_message: &mut Instant,
-    event: impl Into<Cow<'static, str>> + std::marker::Send + 'static,
-    data: Value,
-) -> JoinHandle<Result<(), BroadcastError>> {
-    // if last_message.elapsed().as_secs() <= 1 {
-    //     return tokio::spawn(async { Ok(()) });
-    // }
-
-    // *last_message = Instant::now();
-    tokio::spawn(async move { socket_io.of("/simulation").unwrap().emit(event, data) })
 }
 
 #[derive(Debug, Default, Clone, PartialEq, PartialOrd)]
@@ -76,7 +60,6 @@ pub async fn new(socket_io: SocketIo, mut receiver: mpsc::UnboundedReceiver<Thre
     let pause = false;
 
     let mut tps_tracker = 0.0;
-    let mut last_socket = Instant::now();
 
     let mut old_state = SimulationState::default();
     let mut state = SimulationState::default();
@@ -100,37 +83,16 @@ pub async fn new(socket_io: SocketIo, mut receiver: mpsc::UnboundedReceiver<Thre
             while tick_system.expend() {
                 if state.handle_hours() {
                     if state.hours_passed == 6 {
-                        _ = emit_async(
-                            socket_io.clone(),
-                            &mut last_socket,
-                            "announcer",
-                            json!("Day started"),
-                        )
-                        .await
-                        .unwrap();
+                        socket_io.emit("announcer", json!("Day started")).unwrap();
                     }
 
                     if state.hours_passed == 18 {
-                        _ = emit_async(
-                            socket_io.clone(),
-                            &mut last_socket,
-                            "announcer",
-                            json!("Day ending"),
-                        )
-                        .await
-                        .unwrap();
+                        socket_io.emit("announcer", json!("Day ending")).unwrap();
                     }
                 }
 
                 if state.handle_days() && state.days_passed % SimulationState::DAYS_PER_MOTH == 0 {
-                    _ = emit_async(
-                        socket_io.clone(),
-                        &mut last_socket,
-                        "announcer",
-                        json!("Month ending"),
-                    )
-                    .await
-                    .unwrap();
+                    socket_io.emit("announcer", json!("Month ending")).unwrap();
                 }
             }
 
@@ -141,33 +103,29 @@ pub async fn new(socket_io: SocketIo, mut receiver: mpsc::UnboundedReceiver<Thre
             };
 
             if current_tps != tps_tracker {
-                _ = emit_async(
-                    socket_io.clone(),
-                    &mut last_socket,
-                    "tick_debug",
-                    json!({
-                        "current_tps": current_tps,
-                        "target_tps": tick_system.target_tps,
-                    }),
-                )
-                .await
-                .unwrap();
+                socket_io
+                    .emit(
+                        "tick_debug",
+                        json!({
+                            "current_tps": current_tps,
+                            "target_tps": tick_system.target_tps,
+                        }),
+                    )
+                    .unwrap();
 
                 tps_tracker = current_tps;
             }
 
             if old_state.days_passed.abs_diff(state.days_passed) >= 10 {
-                _ = emit_async(
-                    socket_io.clone(),
-                    &mut last_socket,
-                    "tick_debug",
-                    json!({
-                        "days_passed": state.days_passed,
-                        "hours_passed": state.hours_passed,
-                    }),
-                )
-                .await
-                .unwrap();
+                socket_io
+                    .emit(
+                        "tick_debug",
+                        json!({
+                            "days_passed": state.days_passed,
+                            "hours_passed": state.hours_passed,
+                        }),
+                    )
+                    .unwrap();
 
                 old_state = state.clone();
             }
