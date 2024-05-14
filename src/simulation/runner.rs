@@ -28,8 +28,8 @@ pub async fn new(socket_io: SocketIo, mut receiver: mpsc::UnboundedReceiver<Thre
 
     let mut tps_tracker = 0.0;
 
-    let mut previous_state = SimulationState::default();
     let mut state = SimulationState::default();
+    let mut previous_state = state.clone();
 
     loop {
         match receiver.try_recv() {
@@ -54,27 +54,39 @@ pub async fn new(socket_io: SocketIo, mut receiver: mpsc::UnboundedReceiver<Thre
                 real_time_ticking(&mut previous_state, &mut state, socket_io.clone());
             }
 
-            batch_ticking(
-                &mut previous_state,
-                &mut state,
-                tick_delta,
-                socket_io.clone(),
-            );
-
-            // #region Debug TPS
             let current_tps = if tick_system.delta != Duration::ZERO {
                 1.0 / tick_system.delta.as_secs_f64()
             } else {
                 0.0
             };
 
+            if tick_delta > 1 {
+                batch_ticking(
+                    &mut previous_state,
+                    &mut state,
+                    tick_delta,
+                    socket_io.clone(),
+                );
+
+                ws_emit(
+                    socket_io.clone(),
+                    "batch_tick_debug",
+                    json!({
+                                    "current_tps": current_tps,
+                                    "target_tps": tick_system.target_tps,
+                                    "tick_delta": tick_delta,
+                    }),
+                )
+                .unwrap();
+            }
+
             if current_tps != tps_tracker {
                 ws_emit(
                     socket_io.clone(),
                     "tick_debug",
                     json!({
-                                    "current_tps": current_tps,
-                                    "target_tps": tick_system.target_tps,
+                      "current_tps": current_tps,
+                      "target_tps": tick_system.target_tps,
                     }),
                 )
                 .unwrap();
