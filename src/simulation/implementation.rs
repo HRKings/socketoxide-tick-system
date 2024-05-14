@@ -2,7 +2,7 @@ use serde::Serialize;
 use serde_json::json;
 use socketioxide::SocketIo;
 
-use super::ws_emit;
+use super::{ws_emit, SimulationSocketEvent};
 
 #[derive(Debug, Default, Clone, PartialEq, PartialOrd, Serialize)]
 pub struct SimulationState {
@@ -17,8 +17,8 @@ impl SimulationState {
     pub const TICKS_PER_HOUR: u64 = 2;
     pub const HOURS_PER_DAY: u64 = 24;
 
-    pub const OPENING_HOUR: u64 = 6;
-    pub const ENDING_HOUR: u64 = 18;
+    pub const SUNRISE_HOUR: u64 = 6;
+    pub const SUNSET_HOUR: u64 = 18;
 
     pub const DAYS_PER_MONTH: u64 = 30;
     pub const MONTHS_PER_YEAR: u64 = 12;
@@ -89,10 +89,14 @@ pub fn update(
     state: &mut SimulationState,
     socket_io: SocketIo,
 ) {
-    if previous_state.get_total_hours() - state.get_total_hours() > 24 * 10 {
+    if previous_state
+        .get_total_hours()
+        .abs_diff(state.get_total_hours())
+        > 24 * 10
+    {
         ws_emit(
             socket_io.clone(),
-            "state_debug",
+            SimulationSocketEvent::StateDebug.to_string(),
             json!({ "state": state, "total_elapsed_hours": state.get_total_hours()}),
         )
         .unwrap();
@@ -109,25 +113,50 @@ pub fn real_time_ticking(
     let _ = previous_state;
 
     if state.handle_hours() {
-        if state.current_hour == SimulationState::OPENING_HOUR {
-            ws_emit(socket_io.clone(), "announcer", json!("Opening hours")).unwrap();
+        if state.current_hour == SimulationState::SUNRISE_HOUR {
+            ws_emit(
+                socket_io.clone(),
+                SimulationSocketEvent::Announcer.to_string(),
+                json!("Sunrise"),
+            )
+            .unwrap();
         }
 
-        if state.current_hour == SimulationState::ENDING_HOUR {
-            ws_emit(socket_io.clone(), "announcer", json!("Closing hours")).unwrap();
+        if state.current_hour == SimulationState::SUNSET_HOUR {
+            ws_emit(
+                socket_io.clone(),
+                SimulationSocketEvent::Announcer.to_string(),
+                json!("Sunset"),
+            )
+            .unwrap();
         }
     }
 
     if state.handle_days() {
-        ws_emit(socket_io.clone(), "announcer", json!("Day starting")).unwrap();
+        ws_emit(
+            socket_io.clone(),
+            SimulationSocketEvent::Announcer.to_string(),
+            json!("Day starting"),
+        )
+        .unwrap();
     }
 
     if state.handle_months() {
-        ws_emit(socket_io.clone(), "announcer", json!("Month starting")).unwrap();
+        ws_emit(
+            socket_io.clone(),
+            SimulationSocketEvent::Announcer.to_string(),
+            json!("Month starting"),
+        )
+        .unwrap();
     }
 
     if state.handle_years() {
-        ws_emit(socket_io.clone(), "announcer", json!("Year starting")).unwrap();
+        ws_emit(
+            socket_io.clone(),
+            SimulationSocketEvent::Announcer.to_string(),
+            json!("Year starting"),
+        )
+        .unwrap();
     }
 }
 

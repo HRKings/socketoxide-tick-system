@@ -12,7 +12,7 @@ use crate::simulation::ThreadEvent;
 use crate::utils::tick_system::TickSystem;
 
 use super::implementation::{batch_ticking, real_time_ticking, update};
-use super::ws_emit;
+use super::{ws_emit, SimulationSocketEvent};
 
 fn calculate_delta(global_timer: &mut Instant) -> JoinHandle<Duration> {
     let tmp = global_timer.elapsed();
@@ -70,7 +70,7 @@ pub async fn new(socket_io: SocketIo, mut receiver: mpsc::UnboundedReceiver<Thre
 
                 ws_emit(
                     socket_io.clone(),
-                    "batch_tick_debug",
+                    SimulationSocketEvent::BatchTickDebug.to_string(),
                     json!({
                                     "current_tps": current_tps,
                                     "target_tps": tick_system.target_tps,
@@ -83,7 +83,7 @@ pub async fn new(socket_io: SocketIo, mut receiver: mpsc::UnboundedReceiver<Thre
             if current_tps != tps_tracker {
                 ws_emit(
                     socket_io.clone(),
-                    "tick_debug",
+                    SimulationSocketEvent::TickDebug.to_string(),
                     json!({
                       "current_tps": current_tps,
                       "target_tps": tick_system.target_tps,

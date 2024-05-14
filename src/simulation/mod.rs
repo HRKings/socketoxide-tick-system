@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, fmt::Display};
 
 use serde_json::Value;
 use socketioxide::{BroadcastError, SocketIo};
@@ -17,4 +17,18 @@ pub fn ws_emit(
     data: Value,
 ) -> Result<(), BroadcastError> {
     socket_io.of("/simulation").unwrap().emit(event, data)
+}
+
+#[derive(Debug)]
+pub enum SimulationSocketEvent {
+    Announcer,
+    StateDebug,
+    TickDebug,
+    BatchTickDebug,
+}
+
+impl Display for SimulationSocketEvent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
